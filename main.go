@@ -1,46 +1,88 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/PuerkitoBio/goquery"
-	"net/http"
+	"golang.org/x/net/html/charset"
+	"io/ioutil"
 )
 
 
-func main() {
-	var url = "https://www.mercari.com/jp/search/"
-	var headers = map[string]string {
-		"accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3",
-		"accept-encoding": "gzip, deflate, br",
-		"accept-language": "en-US,en;q=0.9,ja;q=0.8,pt;q=0.7",
-		"cache-control": "no-cache",
-		"pragma": "no-cache",
-		"upgrade-insecure-requests": "1",
-		"user-agent": "Mozilla/5.0",
-	}
+func convrtToUTF8(str string, origin string) string {
+	strBytes := []byte(str)
+	byteReader := bytes.NewReader(strBytes)
+	reader, _ := charset.NewReaderLabel(origin, byteReader)
+	strBytes, _ = ioutil.ReadAll(reader)
+	return string(strBytes)
+}
 
+func getItemData(keyword string) {
+	url := "https://www.mercari.com/jp/search/?keyword=" + keyword
+	doc, _ := goquery.NewDocument(url)
+	// sections of items on the mercari
+	selector := "body > div.default-container > main > div.l-content > section > div.items-box-content.clearfix > section.items-box"
+	doc.Find(selector).EachWithBreak(func(i int, s *goquery.Selection) bool {
+		// Get item detail page url
+		inner := s.Find("a")
+		itemUrl, isExists := inner.Attr("href")
 
-
-	req, _ := http.NewRequest("GET", url, nil)
-
-	for key, value := range headers {
-		req.Header.Set(key, value)
-	}
-
-	q := req.URL.Query()
-    q.Add("keyword", "ルンバ")
-    req.URL.RawQuery = q.Encode()
-
-	fmt.Println(req.URL.String())
-
-	resp, _ := http.DefaultClient.Do(req)
-	fmt.Println(resp)
-	doc := goquery.NewDocumentFromNode(resp.Body)
-	selection := doc.Find("main")
-	innerSeceltion := selection.Find("a")
-
-	innerSeceltion.Each(func(index int, s *goquery.Selection) {
-		fmt.Println(s)
+		if isExists {
+			getItemDetail(itemUrl)
+			return true
+		}
+		return true
 	})
+}
+
+func getItemDetail(url string) {
+	selector := "body > div.default-container > section > div.item-main-content.clearfix > table > tbody > tr"
+	doc, _ := goquery.NewDocument(url)
+	doc.Find(selector).Each(func(i int, s *goquery.Selection) {
+		// Get item detail page url
+		//body > div.default-container > section > div.item-main-content.clearfix > table > tbody > tr:nth-child(2) > td > a:nth-child(2) > div > i
+		//body > div.default-container > section > div.item-main-content.clearfix > table > tbody > tr:nth-child(2) > td > a:nth-child(1) > div
+		//body > div.default-container > section > div.item-main-content.clearfix > table > tbody > tr:nth-child(2) > td > a:nth-child(2) > div > i
+
+		key := s.Find("th").Text()
+
+		value := ""
+		if key == "出品者" {
+
+		} else if key == "カテゴリー" {
+			s.Find("td > a").Each(func(j int, inner *goquery.Selection) {
+				if j == 0 {
+					value = inner.Text()
+				} else {
+					value = value + "," + inner.Find("div").Text()
+				}
+			})
+		} else {
+			value = s.Find("td").Text()
+		}
+		fmt.Println(key, value)
+		//itemUrl, isExists := inner.Attr("href")
+		//
+		//if isExists {
+		//	fmt.Println(itemUrl)
+		//}
+	})
+}
+
+
+func main() {
+	getItemData("ルンバ")
+
+	//fileInfos, _ := ioutil.ReadFile("./test.html")
+	//stringReader := strings.NewReader(string(fileInfos))
+	//doc, _ := goquery.NewDocumentFromReader(stringReader)
+
+
+
+	//innerSeceltion := selection.Find("a")
+	//
+	//innerSeceltion.Each(func(index int, s *goquery.Selection) {
+	//	fmt.Println(s)
+	//})
 
 }
